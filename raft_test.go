@@ -1,10 +1,12 @@
 package raft
 
-import "testing"
+import (
+	"testing"
 
-func TestHello(t *testing.T) {
-    want := "Hello, world."
-    if got := Hello(); got != want {
-        t.Errorf("Hello() = %q, want %q", got, want)
-    }
+	"github.com/stretchr/testify/assert"
+)
+
+func TestStartAsFollower(t *testing.T) {
+	node := NewRaft()
+	assert.Equal(t, node.getState(), FOLLOWER)
 }
