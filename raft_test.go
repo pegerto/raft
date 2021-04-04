@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestTransitionToLeader(t *testing.T) {
+func TestSingleNodeTransitionToLeader(t *testing.T) {
 	nodePort := testutil.FreePort(t)
 	cluster := []string{":" + strconv.Itoa(nodePort)}
 	node := NewRaft(nodePort, cluster)
@@ -17,4 +17,5 @@ func TestTransitionToLeader(t *testing.T) {
 		return node.state == LEADER
 	}
 	assert.Eventually(t, isLeader, time.Minute*1, time.Second*1)
+	assert.Equal(t, node.GetLeader(), ":"+strconv.Itoa(nodePort))
 }

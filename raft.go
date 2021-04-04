@@ -2,6 +2,7 @@ package raft
 
 import (
 	"log"
+	"strconv"
 	"time"
 )
 
@@ -27,6 +28,7 @@ type Raft struct {
 	lastEntry       int64
 	currentTerm     int64
 	clusterNodes    []string
+	leader          string
 	voteRequestCh   chan RequestVoteRequest
 	votesReceivedCh chan RequestVoteResponse
 }
@@ -47,6 +49,15 @@ func (r *Raft) getTerm() int64 {
 	return r.currentTerm
 }
 
+func (r *Raft) setLeader(leader string) {
+	r.leader = leader
+}
+
+// GetLeader return leader address
+func (r *Raft) GetLeader() string {
+	return r.leader
+}
+
 func (r *Raft) processVoteRequest(req RequestVoteRequest) RequestVoteResponse {
 	resp := RequestVoteResponse{
 		Granted: true,
@@ -59,6 +70,12 @@ func (r *Raft) runFollower() {
 		if r.lastEntry+r.electionTimeOut.Nanoseconds() < time.Now().UnixNano() {
 			r.setState(CANDIDATE)
 		}
+	}
+}
+
+func (r *Raft) runLeader() {
+	for r.getState() == LEADER {
+		time.Sleep(100)
 	}
 }
 
@@ -84,6 +101,7 @@ func (r *Raft) runCandidate() {
 			if receivedVotes >= majority {
 				log.Printf("Leader elected")
 				r.setState(LEADER)
+				r.setLeader(":" + strconv.Itoa(r.listenTCPPort))
 			}
 		}
 	}
@@ -96,8 +114,9 @@ func (r *Raft) runFSM() {
 			r.runFollower()
 		case CANDIDATE:
 			r.runCandidate()
+		case LEADER:
+			r.runLeader()
 		}
-		time.Sleep(100)
 	}
 }
 
