@@ -1,6 +1,7 @@
 package raft
 
 import (
+	"log"
 	"time"
 )
 
@@ -47,10 +48,9 @@ func (r *Raft) getTerm() int64 {
 }
 
 func (r *Raft) processVoteRequest(req RequestVoteRequest) RequestVoteResponse {
-	resp := RequestVoteResponse{}
-	resp.RPCHeader.Type = VoteResponse
-	resp.Granted = true
-
+	resp := RequestVoteResponse{
+		Granted: true,
+	}
 	return resp
 }
 
@@ -64,6 +64,10 @@ func (r *Raft) runFollower() {
 
 func (r *Raft) runCandidate() {
 	var voteRequested = false
+	var receivedVotes = 0
+
+	majority := len(r.clusterNodes)/2 + 1
+
 	for r.getState() == CANDIDATE {
 		if !voteRequested {
 			r.requestVoteRequest()
@@ -73,6 +77,14 @@ func (r *Raft) runCandidate() {
 		select {
 		case req := <-r.voteRequestCh:
 			req.Response <- r.processVoteRequest(req)
+		case vote := <-r.votesReceivedCh:
+			if vote.Granted {
+				receivedVotes++
+			}
+			if receivedVotes >= majority {
+				log.Printf("Leader elected")
+				r.setState(LEADER)
+			}
 		}
 	}
 }
@@ -98,7 +110,7 @@ func NewRaft(listenPort int, clusterNodes []string) *Raft {
 	raftNode.currentTerm = 1
 	raftNode.clusterNodes = clusterNodes
 	raftNode.voteRequestCh = make(chan RequestVoteRequest)
-
+	raftNode.votesReceivedCh = make(chan RequestVoteResponse)
 	// start raft node as follower
 	raftNode.setState(FOLLOWER)
 	go raftNode.listen()
