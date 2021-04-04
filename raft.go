@@ -26,11 +26,13 @@ type Raft struct {
 	listenTCPPort   int
 	electionTimeOut time.Duration
 	lastEntry       int64
+	lastVoteTerm    int64
 	currentTerm     int64
 	clusterNodes    []string
 	leader          string
 	voteRequestCh   chan RequestVoteRequest
 	votesReceivedCh chan RequestVoteResponse
+	ticker          *time.Ticker
 }
 
 func (r *Raft) setState(state State) {
@@ -58,16 +60,43 @@ func (r *Raft) GetLeader() string {
 	return r.leader
 }
 
+func (r *Raft) quorum() int {
+	return len(r.clusterNodes)/2 + 1
+}
+
 func (r *Raft) processVoteRequest(req RequestVoteRequest) RequestVoteResponse {
-	resp := RequestVoteResponse{
-		Granted: true,
+	resp := RequestVoteResponse{}
+	log.Println("Procesing  vote response")
+
+	//  if the request vote term is longer than the current
+	//  set the node as follower
+	if r.getTerm() < req.Term {
+		r.setState(FOLLOWER)
 	}
+
+	// voted already in the current term
+	if r.lastVoteTerm >= r.getTerm() {
+		return resp
+	}
+
+	r.lastVoteTerm = r.getTerm()
+	resp.Granted = true
 	return resp
 }
 
 func (r *Raft) runFollower() {
 	for r.getState() == FOLLOWER {
-		if r.lastEntry+r.electionTimeOut.Nanoseconds() < time.Now().UnixNano() {
+		heartBeatTimeout := randomTimeout(r.electionTimeOut)
+
+		select {
+		case req := <-r.voteRequestCh:
+			req.Response <- r.processVoteRequest(req)
+
+		case <-r.votesReceivedCh:
+			log.Panic("Not expecting a vote reponse at this state")
+
+		case <-heartBeatTimeout:
+			log.Println("Heartbeat timeout")
 			r.setState(CANDIDATE)
 		}
 	}
@@ -83,27 +112,34 @@ func (r *Raft) runCandidate() {
 	var voteRequested = false
 	var receivedVotes = 0
 
-	majority := len(r.clusterNodes)/2 + 1
+	electionTimer := time.After(1 * time.Second)
 
 	for r.getState() == CANDIDATE {
 		if !voteRequested {
-			r.requestVoteRequest()
+			go r.requestVoteRequest()
 			voteRequested = true
 		}
 
 		select {
 		case req := <-r.voteRequestCh:
 			req.Response <- r.processVoteRequest(req)
+
 		case vote := <-r.votesReceivedCh:
 			if vote.Granted {
 				receivedVotes++
 			}
-			if receivedVotes >= majority {
+			if receivedVotes >= r.quorum() {
 				log.Printf("Leader elected")
 				r.setState(LEADER)
 				r.setLeader(":" + strconv.Itoa(r.listenTCPPort))
 			}
+
+		case <-electionTimer:
+			log.Println("Election failed restarting the election")
+			return
+		default:
 		}
+
 	}
 }
 
@@ -122,14 +158,18 @@ func (r *Raft) runFSM() {
 
 // NewRaft creates a new Raft node
 func NewRaft(listenPort int, clusterNodes []string) *Raft {
-	raftNode := Raft{}
-	raftNode.listenTCPPort = listenPort
-	raftNode.electionTimeOut = 10 * time.Second
-	raftNode.lastEntry = time.Now().UnixNano()
-	raftNode.currentTerm = 1
-	raftNode.clusterNodes = clusterNodes
-	raftNode.voteRequestCh = make(chan RequestVoteRequest)
-	raftNode.votesReceivedCh = make(chan RequestVoteResponse)
+	raftNode := Raft{
+		listenTCPPort:   listenPort,
+		electionTimeOut: 10 * time.Second,
+		lastEntry:       time.Now().UnixNano(),
+		currentTerm:     1,
+		clusterNodes:    clusterNodes,
+		voteRequestCh:   make(chan RequestVoteRequest),
+		votesReceivedCh: make(chan RequestVoteResponse),
+		ticker:          time.NewTicker(100),
+		lastVoteTerm:    -1,
+	}
+
 	// start raft node as follower
 	raftNode.setState(FOLLOWER)
 	go raftNode.listen()

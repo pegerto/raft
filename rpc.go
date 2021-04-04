@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/rpc"
 	"strconv"
+	"sync"
 )
 
 func (r *Raft) requestVoteRequest() {
@@ -47,14 +48,19 @@ func (s *RPCServer) RequestVote(voteRequest RequestVoteRequest, response *Reques
 	s.raft.voteRequestCh <- voteRequest
 	resp := <-voteRequest.Response
 	*response = resp
+	log.Printf("Request vote reponded node: %d, granted %t", s.raft.listenTCPPort, response.Granted)
 	return nil
 }
 
 func (r *Raft) listen() {
+	var mutex sync.Mutex
+	mutex.Lock()
+
+	serv := rpc.NewServer()
 	var server = &RPCServer{
 		raft: r,
 	}
-	rpc.Register(server)
+	serv.Register(server)
 
 	// RPC by itself does not allow multiple RPC servers under
 	// differnt ports, this is a workaround:
@@ -62,8 +68,9 @@ func (r *Raft) listen() {
 	oldMux := http.DefaultServeMux
 	mux := http.NewServeMux()
 	http.DefaultServeMux = mux
-	rpc.HandleHTTP()
+	serv.HandleHTTP(rpc.DefaultRPCPath, rpc.DefaultDebugPath)
 	http.DefaultServeMux = oldMux
+	mutex.Unlock()
 
 	listener, e := net.Listen("tcp", ":"+strconv.Itoa(r.listenTCPPort))
 	if e != nil {

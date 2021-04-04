@@ -18,3 +18,7 @@ func FreePort(t *testing.T) int {
 	defer l.Close()
 	return l.Addr().(*net.TCPAddr).Port
 }
+
+func ClusterPorts(t *testing.T) (int, int, int) {
+	return FreePort(t), FreePort(t), FreePort(t)
+}
