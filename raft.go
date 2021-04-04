@@ -33,7 +33,7 @@ type Raft struct {
 	leader          string
 	voteRequestCh   chan RequestVoteRequest
 	votesReceivedCh chan RequestVoteResponse
-	ticker          *time.Ticker
+	appendEntriesCh chan AppendEntriesRequest
 }
 
 func (r *Raft) setState(state State) {
@@ -85,16 +85,43 @@ func (r *Raft) processVoteRequest(req RequestVoteRequest) RequestVoteResponse {
 	return resp
 }
 
+func (r *Raft) startReplication() {
+	replication := func(node string, done chan<- bool) {
+		log.Infof("Replicating to node %s", node)
+		replicatioTicker := time.NewTicker(200)
+		for {
+			<-replicatioTicker.C
+			entries := AppendEntriesRequest{
+				CurrentTerm: r.getTerm(),
+				LeaderId:    r.GetLeader(),
+			}
+			r.replicate(node, entries)
+		}
+	}
+
+	for _, node := range r.clusterNodes {
+		if node == ":"+strconv.Itoa(r.listenTCPPort) {
+			continue
+		}
+		done := make(chan bool)
+		go replication(node, done)
+	}
+}
+
 func (r *Raft) runFollower() {
+	log.Info("Node in FOLLOWER mode")
+	heartBeatTimeout := randomTimeout(r.electionTimeOut)
 	for r.getState() == FOLLOWER {
-		log.Info("Node in FOLLOWER mode")
-		heartBeatTimeout := randomTimeout(r.electionTimeOut)
 		select {
 		case req := <-r.voteRequestCh:
 			req.Response <- r.processVoteRequest(req)
 
 		case <-r.votesReceivedCh:
 			log.Panic("Not expecting a vote reponse at this state")
+
+		case entries := <-r.appendEntriesCh:
+			r.setLeader(entries.LeaderId)
+			r.lastEntry = time.Now().UnixNano()
 
 		case <-heartBeatTimeout:
 			log.Println("Heartbeat timeout")
@@ -105,8 +132,17 @@ func (r *Raft) runFollower() {
 
 func (r *Raft) runLeader() {
 	log.Info("Node in LEADER mode")
+	r.startReplication()
+
 	for r.getState() == LEADER {
-		time.Sleep(100)
+		select {
+		case req := <-r.voteRequestCh:
+			req.Response <- r.processVoteRequest(req)
+
+		case <-r.votesReceivedCh:
+			log.Debug("Node retrie a vote but already elected as leader")
+
+		}
 	}
 }
 
@@ -168,7 +204,7 @@ func NewRaft(listenPort int, clusterNodes []string) *Raft {
 		clusterNodes:    clusterNodes,
 		voteRequestCh:   make(chan RequestVoteRequest),
 		votesReceivedCh: make(chan RequestVoteResponse),
-		ticker:          time.NewTicker(100),
+		appendEntriesCh: make(chan AppendEntriesRequest),
 		lastVoteTerm:    -1,
 	}
 

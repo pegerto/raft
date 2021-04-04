@@ -10,6 +10,18 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+func (r *Raft) replicate(node string, entries AppendEntriesRequest) {
+	client, err := rpc.DialHTTP("tcp", node)
+	if err != nil {
+		log.Fatal("Connection error: ", err)
+	}
+	var resp = AppendEntriesResponse{}
+	err = client.Call("RPCServer.AppendEntries", entries, &resp)
+	if err != nil {
+		log.Warnf("Error requesting vote to node %s: %s", node, err)
+	}
+}
+
 func (r *Raft) requestVoteRequest() {
 	r.setTerm(r.getTerm() + 1)
 
@@ -25,7 +37,7 @@ func (r *Raft) requestVoteRequest() {
 		var resp = RequestVoteResponse{}
 		err = client.Call("RPCServer.RequestVote", requestVoteRequest, &resp)
 		if err != nil {
-			log.Printf("Error requesting vote to node %s: %s", node, err)
+			log.Warnf("Error requesting vote to node %s: %s", node, err)
 		}
 		r.votesReceivedCh <- resp
 	}
@@ -50,6 +62,12 @@ func (s *RPCServer) RequestVote(voteRequest RequestVoteRequest, response *Reques
 	resp := <-voteRequest.Response
 	*response = resp
 	log.Debugf("Request vote reponded node: %d, granted %t", s.raft.listenTCPPort, response.Granted)
+	return nil
+}
+
+// AppendEntries implements append entry RPC node
+func (s *RPCServer) AppendEntries(appendRequest AppendEntriesRequest, response *AppendEntriesResponse) error {
+	s.raft.appendEntriesCh <- appendRequest
 	return nil
 }
 

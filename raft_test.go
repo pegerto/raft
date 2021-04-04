@@ -26,9 +26,10 @@ func TestLeaderElectionOnCluster(t *testing.T) {
 	node1 := NewRaft(node1Port, cluster)
 	node2 := NewRaft(node2Port, cluster)
 	node3 := NewRaft(node3Port, cluster)
+	nodes := []*Raft{node1, node2, node3}
 
-	onLeaderRestFollowers := func() bool {
-		nodes := []*Raft{node1, node2, node3}
+	oneLeaderRestFollowers := func() bool {
+
 		var leaderCount = 0
 		var followerCount = 0
 		for _, node := range nodes {
@@ -43,5 +44,16 @@ func TestLeaderElectionOnCluster(t *testing.T) {
 		return leaderCount == 1 && followerCount == 2
 	}
 
-	assert.Eventually(t, onLeaderRestFollowers, time.Minute*1, time.Second*1)
+	allNodesKnownTheLeader := func() bool {
+		leader := nodes[0].GetLeader()
+		for _, node := range nodes {
+			if node.GetLeader() != leader {
+				return false
+			}
+		}
+		return leader != ""
+	}
+
+	assert.Eventually(t, oneLeaderRestFollowers, time.Minute*1, time.Second*1)
+	assert.Eventually(t, allNodesKnownTheLeader, time.Minute*1, time.Second*1)
 }
