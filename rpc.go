@@ -1,12 +1,13 @@
 package raft
 
 import (
-	"log"
 	"net"
 	"net/http"
 	"net/rpc"
 	"strconv"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
 
 func (r *Raft) requestVoteRequest() {
@@ -43,12 +44,12 @@ type RPCServer struct {
 
 // RequestVote request
 func (s *RPCServer) RequestVote(voteRequest RequestVoteRequest, response *RequestVoteResponse) error {
-	log.Printf("Request vote received")
+	log.Debug("Request vote received")
 	voteRequest.Response = make(chan RequestVoteResponse)
 	s.raft.voteRequestCh <- voteRequest
 	resp := <-voteRequest.Response
 	*response = resp
-	log.Printf("Request vote reponded node: %d, granted %t", s.raft.listenTCPPort, response.Granted)
+	log.Debugf("Request vote reponded node: %d, granted %t", s.raft.listenTCPPort, response.Granted)
 	return nil
 }
 
@@ -76,7 +77,7 @@ func (r *Raft) listen() {
 	if e != nil {
 		log.Fatal("Listen error: ", e)
 	}
-	log.Printf("Serving RPC server on port %d", r.listenTCPPort)
+	log.Infof("Serving RPC server on port %d", r.listenTCPPort)
 
 	err := http.Serve(listener, mux)
 	if err != nil {

@@ -1,9 +1,10 @@
 package raft
 
 import (
-	"log"
 	"strconv"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // State represent the current state of a raft node
@@ -66,7 +67,7 @@ func (r *Raft) quorum() int {
 
 func (r *Raft) processVoteRequest(req RequestVoteRequest) RequestVoteResponse {
 	resp := RequestVoteResponse{}
-	log.Println("Procesing  vote response")
+	log.Debugf("Procesing  vote request: %v", req)
 
 	//  if the request vote term is longer than the current
 	//  set the node as follower
@@ -86,8 +87,8 @@ func (r *Raft) processVoteRequest(req RequestVoteRequest) RequestVoteResponse {
 
 func (r *Raft) runFollower() {
 	for r.getState() == FOLLOWER {
+		log.Info("Node in FOLLOWER mode")
 		heartBeatTimeout := randomTimeout(r.electionTimeOut)
-
 		select {
 		case req := <-r.voteRequestCh:
 			req.Response <- r.processVoteRequest(req)
@@ -103,6 +104,7 @@ func (r *Raft) runFollower() {
 }
 
 func (r *Raft) runLeader() {
+	log.Info("Node in LEADER mode")
 	for r.getState() == LEADER {
 		time.Sleep(100)
 	}
@@ -111,9 +113,9 @@ func (r *Raft) runLeader() {
 func (r *Raft) runCandidate() {
 	var voteRequested = false
 	var receivedVotes = 0
+	log.Info("Node in CANDIDATE mode")
 
 	electionTimer := time.After(1 * time.Second)
-
 	for r.getState() == CANDIDATE {
 		if !voteRequested {
 			go r.requestVoteRequest()
@@ -129,13 +131,13 @@ func (r *Raft) runCandidate() {
 				receivedVotes++
 			}
 			if receivedVotes >= r.quorum() {
-				log.Printf("Leader elected")
 				r.setState(LEADER)
 				r.setLeader(":" + strconv.Itoa(r.listenTCPPort))
+				log.Infof("Leader elected: %s", r.GetLeader())
 			}
 
 		case <-electionTimer:
-			log.Println("Election failed restarting the election")
+			log.Debug("Election failed restarting the election")
 			return
 		default:
 		}
