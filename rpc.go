@@ -32,7 +32,7 @@ func (r *replicator) replicate(entries AppendEntriesRequest) {
 	var resp = AppendEntriesResponse{}
 	err := r.client.Call("RPCServer.AppendEntries", entries, &resp)
 	if err != nil {
-		log.Warnf("Error requesting vote to node %s: %s", r.node, err)
+		log.Warnf("Error appending entries to node %s: %s", r.node, err)
 	}
 }
 
