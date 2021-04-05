@@ -15,7 +15,7 @@ type RequestVoteResponse struct {
 // AppendEntriesRequest request
 type AppendEntriesRequest struct {
 	CurrentTerm int64
-	LeaderId    string
+	LeaderID    string
 }
 
 // AppendEntriesResponse response

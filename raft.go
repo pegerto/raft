@@ -88,14 +88,15 @@ func (r *Raft) processVoteRequest(req RequestVoteRequest) RequestVoteResponse {
 func (r *Raft) startReplication() {
 	replication := func(node string, done chan<- bool) {
 		log.Infof("Replicating to node %s", node)
-		replicatioTicker := time.NewTicker(200)
+		replicationTicker := time.NewTicker(200)
+		repl := newReplicator(node)
 		for {
-			<-replicatioTicker.C
+			<-replicationTicker.C
 			entries := AppendEntriesRequest{
 				CurrentTerm: r.getTerm(),
-				LeaderId:    r.GetLeader(),
+				LeaderID:    r.GetLeader(),
 			}
-			r.replicate(node, entries)
+			repl.replicate(entries)
 		}
 	}
 
@@ -120,8 +121,9 @@ func (r *Raft) runFollower() {
 			log.Panic("Not expecting a vote reponse at this state")
 
 		case entries := <-r.appendEntriesCh:
-			r.setLeader(entries.LeaderId)
+			r.setLeader(entries.LeaderID)
 			r.lastEntry = time.Now().UnixNano()
+			r.setTerm(entries.CurrentTerm)
 
 		case <-heartBeatTimeout:
 			log.Println("Heartbeat timeout")
@@ -214,4 +216,9 @@ func NewRaft(listenPort int, clusterNodes []string) *Raft {
 	go raftNode.runFSM()
 
 	return &raftNode
+}
+
+// Shutdown terminate a node
+func (r *Raft) Shutdown() {
+	r.setState(SHUTDOWN)
 }

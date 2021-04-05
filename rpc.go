@@ -10,15 +10,23 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func (r *Raft) replicate(node string, entries AppendEntriesRequest) {
+type replicator struct {
+	client *rpc.Client
+	node   string
+}
+
+func newReplicator(node string) replicator {
 	client, err := rpc.DialHTTP("tcp", node)
 	if err != nil {
 		log.Fatal("Connection error: ", err)
 	}
+	return replicator{client, node}
+}
+func (r *replicator) replicate(entries AppendEntriesRequest) {
 	var resp = AppendEntriesResponse{}
-	err = client.Call("RPCServer.AppendEntries", entries, &resp)
+	err := r.client.Call("RPCServer.AppendEntries", entries, &resp)
 	if err != nil {
-		log.Warnf("Error requesting vote to node %s: %s", node, err)
+		log.Warnf("Error requesting vote to node %s: %s", r.node, err)
 	}
 }
 
@@ -26,6 +34,7 @@ func (r *Raft) requestVoteRequest() {
 	r.setTerm(r.getTerm() + 1)
 
 	requestVoteRequest := RequestVoteRequest{
+		Term:      r.getTerm(),
 		Candidate: ":" + strconv.Itoa(r.listenTCPPort),
 	}
 
