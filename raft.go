@@ -88,7 +88,7 @@ func (r *Raft) processVoteRequest(req RequestVoteRequest) RequestVoteResponse {
 func (r *Raft) startReplication() {
 	replication := func(node string, done chan<- bool) {
 		log.Infof("Replicating to node %s", node)
-		replicationTicker := time.NewTicker(200)
+		replicationTicker := time.NewTicker(100 * time.Millisecond)
 		repl := newReplicator(node)
 		for {
 			<-replicationTicker.C
@@ -178,7 +178,6 @@ func (r *Raft) runCandidate() {
 		case <-electionTimer:
 			log.Debug("Election failed restarting the election")
 			return
-		default:
 		}
 
 	}

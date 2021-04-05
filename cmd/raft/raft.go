@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/pegerto/raft"
+	"github.com/pkg/profile"
 	"github.com/urfave/cli"
 )
 
@@ -15,6 +16,7 @@ func main() {
 	var port int
 	var cluster string
 
+	defer profile.Start().Stop()
 	app := cli.NewApp()
 	app.Name = "raft"
 	app.Usage = "run a raft node"
