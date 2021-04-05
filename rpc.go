@@ -6,6 +6,7 @@ import (
 	"net/rpc"
 	"strconv"
 	"sync"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -16,11 +17,16 @@ type replicator struct {
 }
 
 func newReplicator(node string) replicator {
-	client, err := rpc.DialHTTP("tcp", node)
-	if err != nil {
-		log.Fatal("Connection error: ", err)
+	for {
+		client, err := rpc.DialHTTP("tcp", node)
+		if err != nil {
+			log.Warn("Connection error: ", err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		return replicator{client, node}
 	}
-	return replicator{client, node}
 }
 func (r *replicator) replicate(entries AppendEntriesRequest) {
 	var resp = AppendEntriesResponse{}
@@ -41,7 +47,8 @@ func (r *Raft) requestVoteRequest() {
 	sendRequestVote := func(node string) {
 		client, err := rpc.DialHTTP("tcp", node)
 		if err != nil {
-			log.Fatal("Connection error: ", err)
+			log.Warnf("Connection error: %s", err)
+			return
 		}
 		var resp = RequestVoteResponse{}
 		err = client.Call("RPCServer.RequestVote", requestVoteRequest, &resp)

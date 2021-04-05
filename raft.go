@@ -121,6 +121,7 @@ func (r *Raft) runFollower() {
 			log.Panic("Not expecting a vote reponse at this state")
 
 		case entries := <-r.appendEntriesCh:
+			heartBeatTimeout = randomTimeout(r.electionTimeOut)
 			r.setLeader(entries.LeaderID)
 			r.lastEntry = time.Now().UnixNano()
 			r.setTerm(entries.CurrentTerm)
