@@ -17,23 +17,24 @@ const (
 	CANDIDATE
 	// LEADER state
 	LEADER
-	// SHUTDOWN satate
+	// SHUTDOWN state
 	SHUTDOWN
 )
 
 // Raft node
 type Raft struct {
-	state           State
-	listenTCPPort   int
-	electionTimeOut time.Duration
-	lastEntry       int64
-	lastVoteTerm    int64
-	currentTerm     int64
-	clusterNodes    []string
-	leader          string
-	voteRequestCh   chan RequestVoteRequest
-	votesReceivedCh chan RequestVoteResponse
-	appendEntriesCh chan AppendEntriesRequest
+	state               State
+	listenTCPPort       int
+	electionTimeOut     time.Duration
+	lastEntry           int64
+	lastVoteTerm        int64
+	currentTerm         int64
+	clusterNodes        []string
+	leader              string
+	voteRequestCh       chan RequestVoteRequest
+	votesReceivedCh     chan RequestVoteResponse
+	appendEntriesCh     chan AppendEntriesRequest
+	stopReplicationTask []chan bool
 }
 
 func (r *Raft) setState(state State) {
@@ -86,26 +87,34 @@ func (r *Raft) processVoteRequest(req RequestVoteRequest) RequestVoteResponse {
 }
 
 func (r *Raft) startReplication() {
-	replication := func(node string, done chan<- bool) {
+	replication := func(node string, kill <-chan bool) {
 		log.Infof("Replicating to node %s", node)
 		replicationTicker := time.NewTicker(100 * time.Millisecond)
 		repl := newReplicator(node)
+		entries := AppendEntriesRequest{
+			CurrentTerm: r.getTerm(),
+			LeaderID:    r.GetLeader(),
+		}
 		for {
-			<-replicationTicker.C
-			entries := AppendEntriesRequest{
-				CurrentTerm: r.getTerm(),
-				LeaderID:    r.GetLeader(),
+			select {
+			case <-replicationTicker.C:
+				repl.replicate(entries)
+			case <-kill:
+				log.Println("Stop replication")
+				return
 			}
-			repl.replicate(entries)
 		}
 	}
 
+	i := 0
+	r.stopReplicationTask = make([]chan bool, len(r.clusterNodes)-1)
 	for _, node := range r.clusterNodes {
 		if node == ":"+strconv.Itoa(r.listenTCPPort) {
 			continue
 		}
-		done := make(chan bool)
-		go replication(node, done)
+		r.stopReplicationTask[i] = make(chan bool)
+		go replication(node, r.stopReplicationTask[i])
+		i++
 	}
 }
 
@@ -128,6 +137,7 @@ func (r *Raft) runFollower() {
 
 		case <-heartBeatTimeout:
 			log.Println("Heartbeat timeout")
+			heartBeatTimeout = randomTimeout(r.electionTimeOut)
 			r.setState(CANDIDATE)
 		}
 	}
@@ -136,6 +146,14 @@ func (r *Raft) runFollower() {
 func (r *Raft) runLeader() {
 	log.Info("Node in LEADER mode")
 	r.startReplication()
+	// terminate replication if the node does hold leadership
+	defer func() {
+		for _, task := range r.stopReplicationTask {
+			task <- true
+		}
+	}()
+
+	leaderTicker := time.NewTicker(100 * time.Millisecond)
 
 	for r.getState() == LEADER {
 		select {
@@ -143,10 +161,13 @@ func (r *Raft) runLeader() {
 			req.Response <- r.processVoteRequest(req)
 
 		case <-r.votesReceivedCh:
-			log.Debug("Node retrie a vote but already elected as leader")
+			log.Debug("Node retreived a vote but already elected as leader")
 
+		case <-leaderTicker.C:
+			continue
 		}
 	}
+
 }
 
 func (r *Raft) runCandidate() {
@@ -183,6 +204,10 @@ func (r *Raft) runCandidate() {
 	}
 }
 
+func (r *Raft) runShutdown() {
+
+}
+
 func (r *Raft) runFSM() {
 	for {
 		switch r.getState() {
@@ -192,8 +217,13 @@ func (r *Raft) runFSM() {
 			r.runCandidate()
 		case LEADER:
 			r.runLeader()
+		case SHUTDOWN:
+			r.runShutdown()
+			goto DONE
 		}
 	}
+DONE:
+	log.Println("Raft FSM stopped")
 }
 
 // NewRaft creates a new Raft node

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/pegerto/raft/pkg/testutil"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -69,6 +70,7 @@ func TestShutdownOfLeaderNode(t *testing.T) {
 	// Set node in shutdown
 	for _, node := range nodes {
 		if node.getState() == LEADER {
+			log.Info("Shutdown node")
 			node.Shutdown()
 		}
 	}
