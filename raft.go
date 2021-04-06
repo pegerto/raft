@@ -117,7 +117,6 @@ func (r *Raft) startReplication() {
 	i := 0
 	r.stopReplicationTask = make([]chan bool, len(r.clusterNodes)-1)
 	for _, node := range r.clusterNodes {
-		log.Printf("Start replication: On node %sfor node %s\n", r.getNodeID(), node)
 		if node == r.getNodeID() {
 			continue
 		}
@@ -183,8 +182,11 @@ func (r *Raft) runCandidate() {
 	var voteRequested = false
 	var receivedVotes = 0
 	log.Info("Node in CANDIDATE mode")
-
 	electionTimer := time.After(1 * time.Second)
+
+	//increase term for a new election
+	r.setTerm(r.getTerm() + 1)
+
 	for r.getState() == CANDIDATE {
 		if !voteRequested {
 			go r.requestVoteRequest()
@@ -239,6 +241,7 @@ DONE:
 func NewRaft(listenAddress string, listenPort int, clusterNodes []string) *Raft {
 	raftNode := Raft{
 		listenTCPPort:   listenPort,
+		listenAddress:   listenAddress,
 		electionTimeOut: 10 * time.Second,
 		lastEntry:       time.Now().UnixNano(),
 		currentTerm:     1,
