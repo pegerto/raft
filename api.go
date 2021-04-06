@@ -2,7 +2,7 @@ package raft
 
 // RequestVoteRequest requests a
 type RequestVoteRequest struct {
-	Term      int64
+	Term      uint64
 	Candidate string
 	Response  chan RequestVoteResponse
 }
@@ -14,12 +14,12 @@ type RequestVoteResponse struct {
 
 // AppendEntriesRequest request
 type AppendEntriesRequest struct {
-	CurrentTerm int64
+	CurrentTerm uint64
 	LeaderID    string
 }
 
 // AppendEntriesResponse response
 type AppendEntriesResponse struct {
-	Term    int64
+	Term    uint64
 	Success bool
 }

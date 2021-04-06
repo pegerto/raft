@@ -27,8 +27,8 @@ type Raft struct {
 	listenTCPPort       int
 	electionTimeOut     time.Duration
 	lastEntry           int64
-	lastVoteTerm        int64
-	currentTerm         int64
+	lastVoteTerm        uint64
+	currentTerm         uint64
 	clusterNodes        []string
 	leader              string
 	voteRequestCh       chan RequestVoteRequest
@@ -45,11 +45,11 @@ func (r *Raft) getState() State {
 	return r.state
 }
 
-func (r *Raft) setTerm(term int64) {
+func (r *Raft) setTerm(term uint64) {
 	r.currentTerm = term
 }
 
-func (r *Raft) getTerm() int64 {
+func (r *Raft) getTerm() uint64 {
 	return r.currentTerm
 }
 
@@ -240,7 +240,7 @@ func NewRaft(listenPort int, clusterNodes []string) *Raft {
 		voteRequestCh:   make(chan RequestVoteRequest),
 		votesReceivedCh: make(chan RequestVoteResponse),
 		appendEntriesCh: make(chan AppendEntriesRequest),
-		lastVoteTerm:    -1,
+		lastVoteTerm:    0,
 	}
 
 	// start raft node as follower
