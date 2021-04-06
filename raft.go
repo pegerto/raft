@@ -77,11 +77,14 @@ func (r *Raft) processVoteRequest(req RequestVoteRequest) RequestVoteResponse {
 	}
 
 	// voted already in the current term
+	// TODO: safty requires to persist the node before, grant a vote, to avoid
+	// a node that has restarted to vote twice under the same term.
 	if r.lastVoteTerm >= r.getTerm() {
 		return resp
 	}
 
 	r.lastVoteTerm = r.getTerm()
+
 	resp.Granted = true
 	return resp
 }
