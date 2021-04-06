@@ -27,7 +27,7 @@ func oneLeaderInCluster(nodes []*Raft) func() bool {
 func TestSingleNodeTransitionToLeader(t *testing.T) {
 	nodePort := testutil.FreePort(t)
 	cluster := []string{":" + strconv.Itoa(nodePort)}
-	node := NewRaft(nodePort, cluster)
+	node := NewRaft("", nodePort, cluster)
 	isLeader := func() bool {
 		return node.state == LEADER
 	}
@@ -38,9 +38,9 @@ func TestSingleNodeTransitionToLeader(t *testing.T) {
 func TestLeaderElectionOnCluster(t *testing.T) {
 	node1Port, node2Port, node3Port := testutil.ClusterPorts(t)
 	cluster := []string{":" + strconv.Itoa(node1Port), ":" + strconv.Itoa(node2Port), ":" + strconv.Itoa(node3Port)}
-	node1 := NewRaft(node1Port, cluster)
-	node2 := NewRaft(node2Port, cluster)
-	node3 := NewRaft(node3Port, cluster)
+	node1 := NewRaft("", node1Port, cluster)
+	node2 := NewRaft("", node2Port, cluster)
+	node3 := NewRaft("", node3Port, cluster)
 	nodes := []*Raft{node1, node2, node3}
 
 	allNodesKnownTheLeader := func() bool {
@@ -61,9 +61,9 @@ func TestShutdownOfLeaderNode(t *testing.T) {
 
 	node1Port, node2Port, node3Port := testutil.ClusterPorts(t)
 	cluster := []string{":" + strconv.Itoa(node1Port), ":" + strconv.Itoa(node2Port), ":" + strconv.Itoa(node3Port)}
-	node1 := NewRaft(node1Port, cluster)
-	node2 := NewRaft(node2Port, cluster)
-	node3 := NewRaft(node3Port, cluster)
+	node1 := NewRaft("", node1Port, cluster)
+	node2 := NewRaft("", node2Port, cluster)
+	node3 := NewRaft("", node3Port, cluster)
 	nodes := []*Raft{node1, node2, node3}
 
 	assert.Eventually(t, oneLeaderInCluster(nodes), time.Minute*1, time.Second*1)

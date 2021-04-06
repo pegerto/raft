@@ -24,6 +24,7 @@ const (
 // Raft node
 type Raft struct {
 	state               State
+	listenAddress       string
 	listenTCPPort       int
 	electionTimeOut     time.Duration
 	lastEntry           int64
@@ -35,6 +36,10 @@ type Raft struct {
 	votesReceivedCh     chan RequestVoteResponse
 	appendEntriesCh     chan AppendEntriesRequest
 	stopReplicationTask []chan bool
+}
+
+func (r *Raft) getNodeID() string {
+	return r.listenAddress + ":" + strconv.Itoa(r.listenTCPPort)
 }
 
 func (r *Raft) setState(state State) {
@@ -112,7 +117,7 @@ func (r *Raft) startReplication() {
 	i := 0
 	r.stopReplicationTask = make([]chan bool, len(r.clusterNodes)-1)
 	for _, node := range r.clusterNodes {
-		if node == ":"+strconv.Itoa(r.listenTCPPort) {
+		if node == r.getNodeID() {
 			continue
 		}
 		r.stopReplicationTask[i] = make(chan bool)
@@ -230,7 +235,7 @@ DONE:
 }
 
 // NewRaft creates a new Raft node
-func NewRaft(listenPort int, clusterNodes []string) *Raft {
+func NewRaft(listenAddress string, listenPort int, clusterNodes []string) *Raft {
 	raftNode := Raft{
 		listenTCPPort:   listenPort,
 		electionTimeOut: 10 * time.Second,
