@@ -15,12 +15,19 @@ import (
 func main() {
 	var port int
 	var cluster string
+	var address string
 
 	defer profile.Start().Stop()
 	app := cli.NewApp()
 	app.Name = "raft"
 	app.Usage = "run a raft node"
 	app.Flags = []cli.Flag{
+		cli.StringFlag{
+			Name:        "ip",
+			Usage:       "listen api address",
+			Value:       "127.0.0.1",
+			Destination: &address,
+		},
 		cli.IntFlag{
 			Name:        "port",
 			Value:       4001,
@@ -36,9 +43,9 @@ func main() {
 
 	app.Action = func(c *cli.Context) error {
 		nodes := strings.Split(cluster, ",")
-		raftNode := raft.NewRaft(port, nodes)
+		raftNode := raft.NewRaft(address, port, nodes)
 		for {
-			fmt.Println(raftNode.GetLeader())
+			fmt.Printf("Leader: %s\n", raftNode.GetLeader())
 			time.Sleep(10 * time.Second)
 		}
 	}
