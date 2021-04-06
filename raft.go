@@ -117,6 +117,7 @@ func (r *Raft) startReplication() {
 	i := 0
 	r.stopReplicationTask = make([]chan bool, len(r.clusterNodes)-1)
 	for _, node := range r.clusterNodes {
+		log.Printf("Start replication: On node %sfor node %s\n", r.getNodeID(), node)
 		if node == r.getNodeID() {
 			continue
 		}
