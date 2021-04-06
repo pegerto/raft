@@ -200,7 +200,7 @@ func (r *Raft) runCandidate() {
 			}
 			if receivedVotes >= r.quorum() {
 				r.setState(LEADER)
-				r.setLeader(":" + strconv.Itoa(r.listenTCPPort))
+				r.setLeader(r.getNodeID())
 				log.Infof("Leader elected: %s", r.GetLeader())
 			}
 
